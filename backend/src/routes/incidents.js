@@ -75,6 +75,39 @@ router.get('/stats', async (req, res, next) => {
   }
 });
 
+// GET /api/incidents/country-stats
+router.get('/country-stats', async (req, res, next) => {
+  try {
+    const { data, error } = await supabase
+      .from('incidents')
+      .select('country, outcome, date_of_attack, latitude, longitude')
+      .not('country', 'is', null)
+
+    if (error) throw error
+
+    const thisYear = String(new Date().getFullYear())
+    const byCountry = {}
+
+    for (const inc of data) {
+      const key = inc.country
+      if (!byCountry[key]) {
+        byCountry[key] = { country: key, total: 0, fatal: 0, this_year: 0, points: [] }
+      }
+      const c = byCountry[key]
+      c.total++
+      if (inc.outcome === 'fatal') c.fatal++
+      if (inc.date_of_attack?.startsWith(thisYear)) c.this_year++
+      if (inc.latitude != null && inc.longitude != null) {
+        c.points.push([parseFloat(inc.latitude), parseFloat(inc.longitude)])
+      }
+    }
+
+    res.json({ data: Object.values(byCountry).sort((a, b) => b.total - a.total) })
+  } catch (err) {
+    next(err)
+  }
+})
+
 // GET /api/incidents/:id
 router.get('/:id', async (req, res, next) => {
   try {

@@ -19,8 +19,13 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(helmet());
+// Support comma-separated FRONTEND_URL list for multi-origin (e.g. Vercel + localhost)
+const allowedOrigins = process.env.FRONTEND_URL
+  ? process.env.FRONTEND_URL.split(',').map(u => u.trim()).filter(Boolean)
+  : null;
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
+  origin: allowedOrigins ?? true,   // true = reflect any origin (dev fallback)
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
 }));
 app.use(morgan('dev'));
