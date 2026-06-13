@@ -11,7 +11,9 @@ const regionsRouter = require('./routes/regions');
 const namedZonesRouter = require('./routes/namedZones');
 const riskEstimatesRouter = require('./routes/riskEstimates');
 const sharkMigrationsRouter = require('./routes/sharkMigrations');
+const pipelineRouter = require('./routes/pipeline');
 const errorHandler = require('./middleware/errorHandler');
+const { startScheduler } = require('./pipeline/scheduler');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -41,9 +43,11 @@ app.use('/api/regions', regionsRouter);
 app.use('/api/named-zones', namedZonesRouter);
 app.use('/api/risk-estimates', riskEstimatesRouter);
 app.use('/api/shark-migrations', sharkMigrationsRouter);
+app.use('/api/pipeline', pipelineRouter);
 
 app.use(errorHandler);
 
 app.listen(PORT, () => {
   console.log(`Shark Attack Analytics API running on port ${PORT}`);
+  startScheduler();
 });
