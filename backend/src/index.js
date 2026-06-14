@@ -1,5 +1,15 @@
 require('dotenv').config();
 
+// Startup diagnostic — visible in Render/Railway logs before any module load
+const REQUIRED_VARS = ['SUPABASE_URL', 'SUPABASE_SECRET_KEY', 'GEMINI_API_KEY'];
+const missing = REQUIRED_VARS.filter(k => !process.env[k]);
+if (missing.length) {
+  console.error('[Startup] FATAL: Missing environment variables:', missing.join(', '));
+  console.error('[Startup] Add them in your hosting dashboard → Environment tab, then redeploy.');
+  process.exit(1);
+}
+console.log('[Startup] Env vars OK. Node', process.version, '— starting server…');
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
