@@ -62,7 +62,7 @@ app.use('/api/pipeline', pipelineRouter);
 
 app.use(errorHandler);
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Shark Attack Analytics API running on port ${PORT}`);
   startScheduler();
 });
