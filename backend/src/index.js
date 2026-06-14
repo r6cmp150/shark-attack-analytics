@@ -16,12 +16,10 @@ process.on('unhandledRejection', (reason) => {
 try {
   const REQUIRED_VARS = ['SUPABASE_URL', 'SUPABASE_SECRET_KEY', 'GEMINI_API_KEY'];
   const missing = REQUIRED_VARS.filter(k => !process.env[k]);
-  if (missing.length) {
-    console.error('[Startup] FATAL: Missing environment variables:', missing.join(', '));
-    console.error('[Startup] Add them in your hosting dashboard → Environment tab, then redeploy.');
-    process.exit(1);
-  }
-  console.log('[Startup] Env vars OK. Node', process.version, '— loading modules…');
+  const present = REQUIRED_VARS.filter(k => process.env[k]);
+  if (present.length) console.log('[Startup] Env vars present:', present.join(', '));
+  if (missing.length) console.warn('[Startup] WARNING: Env vars missing:', missing.join(', '), '— dependent features will fail at runtime');
+  console.log('[Startup] Node', process.version, '— loading modules…');
 
   const express = require('express');
   console.log('[Startup] express loaded');
