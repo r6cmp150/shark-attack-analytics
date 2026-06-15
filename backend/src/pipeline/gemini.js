@@ -1,6 +1,6 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-const MODEL = 'gemini-2.0-flash';
+const MODEL = 'gemini-1.5-flash';
 const DAILY_CAP = 100;          // Hard ceiling — conservative to protect free tier
 const CALL_INTERVAL_MS = 6000;  // 15 RPM limit → 1 call per 6s = 10 RPM, safe margin
 
