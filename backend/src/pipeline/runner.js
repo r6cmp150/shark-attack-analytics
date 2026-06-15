@@ -7,8 +7,41 @@ const supabase = require('../db/supabase');
 
 let isRunning = false;
 let lastRunStats = null;
+let stateLoaded = false;
+
+async function loadState() {
+  if (stateLoaded) return;
+  stateLoaded = true;
+  try {
+    const { data } = await supabase
+      .from('pipeline_state')
+      .select('value')
+      .eq('key', 'last_run')
+      .single();
+    if (data?.value) {
+      lastRunStats = data.value;
+      console.log('[Pipeline] Restored last_run from Supabase');
+    }
+  } catch (err) {
+    console.warn('[Pipeline] Could not load state from Supabase:', err.message);
+  }
+}
+
+async function saveState() {
+  try {
+    await supabase.from('pipeline_state').upsert({
+      key: 'last_run',
+      value: lastRunStats,
+      updated_at: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.warn('[Pipeline] Could not save state to Supabase:', err.message);
+  }
+}
 
 async function runPipeline(lookbackHours = 4) {
+  await loadState();
+
   if (isRunning) {
     console.log('[Pipeline] Already running — skipping trigger');
     return { skipped: true };
@@ -35,6 +68,11 @@ async function runPipeline(lookbackHours = 4) {
     const rawArticles = await fetchArticles(lookbackHours);
     stats.gdelt_fetched = rawArticles.length;
 
+    console.log(`\n[Pipeline] Raw articles BEFORE any filtering (${rawArticles.length} total):`);
+    rawArticles.forEach((a, i) => {
+      console.log(`  [${i + 1}] "${a.title}" — ${a.domain} (${a.language})`);
+    });
+
     const stage1Articles = applyStage1Filter(rawArticles);
     stats.stage1_passed = stage1Articles.length;
 
@@ -60,7 +98,7 @@ async function runPipeline(lookbackHours = 4) {
 
         const titleCheck = await checkTitle(article.title, article.language);
 
-        if (!titleCheck.is_shark_attack || titleCheck.confidence < 0.6) {
+        if (!titleCheck.is_shark_attack || titleCheck.confidence < 0.3) {
           console.log(`[Stage 2] ✗ Rejected (confidence: ${titleCheck.confidence.toFixed(2)})`);
           continue;
         }
@@ -149,6 +187,7 @@ async function runPipeline(lookbackHours = 4) {
     console.log(`  Gemini used:     ${stats.gemini_usage.count}/${stats.gemini_usage.cap}`);
 
     lastRunStats = stats;
+    await saveState();
   }
 
   return stats;

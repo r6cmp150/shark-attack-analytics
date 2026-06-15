@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { runPipeline, getPipelineStatus } = require('../pipeline/runner');
+const { fetchArticles } = require('../pipeline/gdelt');
+const { applyStage1Filter } = require('../pipeline/filter');
 const supabase = require('../db/supabase');
 
 // GET /api/pipeline/status
@@ -62,5 +64,30 @@ router.get('/alerts', async (req, res, next) => {
     next(err)
   }
 })
+
+// GET /api/pipeline/raw-articles?hours=24
+// Debug endpoint — shows exactly what GDELT+GNews returns before any filtering
+router.get('/raw-articles', async (req, res, next) => {
+  try {
+    const hours = Math.min(parseInt(req.query.hours) || 24, 72);
+    const raw = await fetchArticles(hours);
+    const stage1 = applyStage1Filter(raw);
+    const stage1Urls = new Set(stage1.map(a => a.url));
+    res.json({
+      hours,
+      raw_count: raw.length,
+      stage1_count: stage1.length,
+      articles: raw.map(a => ({
+        title: a.title,
+        domain: a.domain,
+        language: a.language,
+        passed_stage1: stage1Urls.has(a.url),
+        url: a.url,
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
 module.exports = router;

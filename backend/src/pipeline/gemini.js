@@ -15,11 +15,46 @@ function getModel() {
   return model;
 }
 
-// Daily call counter — resets at midnight
+// Daily call counter — resets at midnight, persisted to Supabase across restarts
 let dailyCount = 0;
 let countDate = new Date().toDateString();
+let dailyCountInitialized = false;
 
-function checkAndIncrementDailyCount() {
+async function initDailyCount() {
+  if (dailyCountInitialized) return;
+  dailyCountInitialized = true;
+  try {
+    const supabase = require('../db/supabase');
+    const { data } = await supabase
+      .from('pipeline_state')
+      .select('value')
+      .eq('key', 'gemini_daily')
+      .single();
+    if (data?.value?.date === new Date().toDateString()) {
+      dailyCount = data.value.count || 0;
+      countDate = data.value.date;
+      console.log(`[Gemini] Restored daily count: ${dailyCount}/${DAILY_CAP}`);
+    }
+  } catch (err) {
+    console.warn('[Gemini] Could not restore daily count:', err.message);
+  }
+}
+
+function persistDailyCount() {
+  try {
+    const supabase = require('../db/supabase');
+    supabase.from('pipeline_state').upsert({
+      key: 'gemini_daily',
+      value: { count: dailyCount, date: countDate },
+      updated_at: new Date().toISOString(),
+    }).then(() => {}).catch(err => {
+      console.warn('[Gemini] Could not persist daily count:', err.message);
+    });
+  } catch {}
+}
+
+async function checkAndIncrementDailyCount() {
+  await initDailyCount();
   const today = new Date().toDateString();
   if (today !== countDate) {
     dailyCount = 0;
@@ -29,6 +64,7 @@ function checkAndIncrementDailyCount() {
     throw new Error(`Daily Gemini cap reached (${DAILY_CAP} calls)`);
   }
   dailyCount++;
+  persistDailyCount();
 }
 
 function sleep(ms) {
@@ -65,7 +101,7 @@ async function callWithRetry(prompt, maxRetries = 3) {
 
 // Stage 2 — title-only classification (~50-100 tokens)
 async function checkTitle(title, language = 'English') {
-  checkAndIncrementDailyCount();
+  await checkAndIncrementDailyCount();
 
   const prompt = `You are a shark attack news classifier.
 
@@ -93,7 +129,7 @@ Respond with valid JSON only — no other text:
 
 // Stage 3 — full article extraction
 async function extractIncident(title, articleText, sourceUrl) {
-  checkAndIncrementDailyCount();
+  await checkAndIncrementDailyCount();
 
   // Truncate to ~6000 chars to stay inside token budget
   const text = articleText.slice(0, 6000);
