@@ -1,7 +1,6 @@
 const { fetchArticles } = require('./gdelt');
 const { applyStage1Filter } = require('./filter');
 const { checkTitle, extractIncident, getDailyCallCount } = require('./groq');
-const { fetchArticleText } = require('./extractor');
 const { isDuplicate } = require('./deduplication');
 const supabase = require('../db/supabase');
 
@@ -81,17 +80,17 @@ async function runPipeline(lookbackHours = 4) {
       return stats;
     }
 
-    // Respect Gemini daily cap — only process as many as we have budget for
+    // Respect Groq daily cap — only process as many as we have budget for
     const { remaining } = getDailyCallCount();
     // Stage 2 + Stage 3 together = up to 2 calls per article
     const maxArticles = Math.floor(remaining / 2);
     const articlesToProcess = stage1Articles.slice(0, maxArticles);
 
     if (articlesToProcess.length < stage1Articles.length) {
-      console.log(`[Pipeline] Gemini budget: capping at ${articlesToProcess.length}/${stage1Articles.length} articles`);
+      console.log(`[Pipeline] Groq budget: capping at ${articlesToProcess.length}/${stage1Articles.length} articles`);
     }
 
-    // ── Stage 2: Gemini title check ─────────────────────────────────────────
+    // ── Stage 2: Groq title check ────────────────────────────────────────────
     for (const article of articlesToProcess) {
       try {
         console.log(`\n[Stage 2] Checking: "${article.title?.slice(0, 80)}"`);
@@ -114,20 +113,17 @@ async function runPipeline(lookbackHours = 4) {
           continue;
         }
 
-        // ── Stage 3: Fetch article text + Gemini extraction ─────────────────
-        console.log(`[Stage 3] Fetching: ${article.url}`);
-        const articleText = await fetchArticleText(article.url);
+        // ── Stage 3: Extract incident from title + headline metadata ────────
+        const metadata = [
+          article.seendate  ? `Published: ${article.seendate}` : null,
+          article.sourcecountry ? `Source country: ${article.sourcecountry}` : null,
+          article.domain    ? `Source domain: ${article.domain}` : null,
+        ].filter(Boolean).join('\n');
 
-        if (!articleText) {
-          console.log('[Stage 3] ✗ Could not extract article text');
-          stats.fetch_failures++;
-          continue;
-        }
-
-        const incidentData = await extractIncident(article.title, articleText, article.url);
+        const incidentData = await extractIncident(article.title, metadata, article.url);
 
         if (!incidentData) {
-          console.log('[Stage 3] ✗ Gemini extraction returned null');
+          console.log('[Stage 3] ✗ Groq extraction returned null');
           stats.errors++;
           continue;
         }
@@ -149,7 +145,6 @@ async function runPipeline(lookbackHours = 4) {
           source_url: article.url,
           source_language: article.language || null,
           source_publication: article.domain || null,
-          raw_article_text: articleText.slice(0, 50000),
         };
 
         const { error } = await supabase.from('incidents').insert(record);

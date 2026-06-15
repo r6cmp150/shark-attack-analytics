@@ -127,22 +127,17 @@ Respond with valid JSON only — no other text:
   }
 }
 
-// Stage 3 — full article extraction
-async function extractIncident(title, articleText, sourceUrl) {
+// Stage 3 — incident extraction from title + headline metadata
+async function extractIncident(title, metadata, sourceUrl) {
   await checkAndIncrementDailyCount();
 
-  // Truncate to ~6000 chars to stay inside token budget
-  const text = articleText.slice(0, 6000);
-
-  const prompt = `You are a shark attack incident analyst extracting structured data from a news article.
+  const prompt = `You are a shark attack incident analyst extracting structured data from a news headline.
 
 TITLE: ${title}
 SOURCE: ${sourceUrl}
+${metadata ? `\n${metadata}` : ''}
 
-ARTICLE:
-${text}
-
-Extract all available information about the shark attack(s) described. Return a single JSON object with these exact fields. Use null for anything not mentioned or inferable:
+Extract all available information from the headline and metadata above. Many fields will be null — only populate what can be confidently inferred from the title. Return a single JSON object with these exact fields. Use null for anything not determinable:
 
 {
   "date_of_attack": "YYYY-MM-DD or null",
