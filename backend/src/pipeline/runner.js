@@ -1,6 +1,6 @@
 const { fetchArticles } = require('./gdelt');
 const { applyStage1Filter } = require('./filter');
-const { checkTitle, extractIncident, getDailyCallCount } = require('./gemini');
+const { checkTitle, extractIncident, getDailyCallCount } = require('./groq');
 const { fetchArticleText } = require('./extractor');
 const { isDuplicate } = require('./deduplication');
 const supabase = require('../db/supabase');
@@ -174,7 +174,7 @@ async function runPipeline(lookbackHours = 4) {
   } finally {
     isRunning = false;
     stats.completed_at = new Date().toISOString();
-    stats.gemini_usage = getDailyCallCount();
+    stats.groq_usage = getDailyCallCount();
 
     const duration = ((new Date(stats.completed_at) - new Date(stats.started_at)) / 1000).toFixed(1);
     console.log(`\n[Pipeline] ── Run complete in ${duration}s ──`);
@@ -184,7 +184,7 @@ async function runPipeline(lookbackHours = 4) {
     console.log(`  Stage 3 success: ${stats.stage3_extracted}`);
     console.log(`  Inserted:        ${stats.inserted}`);
     console.log(`  Duplicates:      ${stats.duplicates}`);
-    console.log(`  Gemini used:     ${stats.gemini_usage.count}/${stats.gemini_usage.cap}`);
+    console.log(`  Groq used:       ${stats.groq_usage.count}/${stats.groq_usage.cap}`);
 
     lastRunStats = stats;
     await saveState();
@@ -193,11 +193,12 @@ async function runPipeline(lookbackHours = 4) {
   return stats;
 }
 
+
 function getPipelineStatus() {
   return {
     is_running: isRunning,
     last_run: lastRunStats,
-    gemini_usage: getDailyCallCount(),
+    groq_usage: getDailyCallCount(),
   };
 }
 
